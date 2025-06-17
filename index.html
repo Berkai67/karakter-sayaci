@@ -124,11 +124,14 @@
     const wordCount = document.getElementById('word-count');
     const charCount = document.getElementById('char-count');
     const paraCount = document.getElementById('para-count');
+
     const searchInput = document.getElementById('search-input');
     const highlightedText = document.getElementById('highlighted-text');
     const searchInfo = document.getElementById('search-info');
+
     const prevBtn = document.getElementById('prev-btn');
     const nextBtn = document.getElementById('next-btn');
+
     const aiKeyInput = document.getElementById('ai-key');
     const aiProviderSelect = document.getElementById('ai-provider');
     const aiSummarizeBtn = document.getElementById('ai-summarize-btn');
@@ -142,13 +145,16 @@
       try {
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument(new Uint8Array(arrayBuffer)).promise;
+
         let fullText = '';
+
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
           const textContent = await page.getTextContent();
           const strings = textContent.items.map(item => item.str);
           fullText += strings.join(' ') + '\n\n';
         }
+
         textInput.value = fullText.trim();
         updateCounts();
         clearSearch();
@@ -160,22 +166,30 @@
     // Sayaç güncelle
     function updateCounts() {
       const text = textInput.value.trim();
+
       charCount.textContent = text.length;
+
+      // Noktalama işaretlerini temizle, kelimeleri al
       const cleanText = text.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()\"\?«»…–—]/g, ' ');
       const words = cleanText.match(/\b[a-zA-ZığüşöçİĞÜŞÖÇ]+\b/g) || [];
       wordCount.textContent = words.length;
+
+      // Paragraf sayısı (boş satırları at)
       const paras = text.split(/\n+/).filter(p => p.trim() !== '');
       paraCount.textContent = paras.length;
     }
 
+    // Metin alanına yazınca sayaç güncelle ve aramayı temizle
     textInput.addEventListener('input', () => {
       updateCounts();
       clearSearch();
     });
 
     // Arama & vurgulama
+
     let currentIndex = 0;
     let matches = [];
+
     searchInput.addEventListener('input', () => {
       currentIndex = 0;
       performSearch();
@@ -184,13 +198,17 @@
     function performSearch() {
       const originalText = textInput.value;
       const search = searchInput.value.trim();
+
       if (search === '') {
         clearSearch();
         return;
       }
+
       const text = originalText.toLocaleLowerCase('tr-TR');
       const searchLower = search.toLocaleLowerCase('tr-TR');
+
       matches = [];
+
       let startIndex = 0;
       while (true) {
         const index = text.indexOf(searchLower, startIndex);
@@ -198,6 +216,7 @@
         matches.push({ index, length: searchLower.length });
         startIndex = index + searchLower.length;
       }
+
       if (matches.length === 0) {
         highlightedText.innerHTML = escapeHtml(originalText);
         highlightedText.style.display = 'block';
@@ -205,6 +224,7 @@
         searchInfo.textContent = 'Bulunan: 0 / 0';
         return;
       }
+
       updateHighlight();
       updateSearchInfo();
     }
@@ -213,20 +233,24 @@
       const text = textInput.value;
       let result = '';
       let lastIndex = 0;
+
       for (let i = 0; i < matches.length; i++) {
         const { index, length } = matches[i];
         result += escapeHtml(text.substring(lastIndex, index));
+
         if (i === currentIndex) {
           result += `<mark class="active">${escapeHtml(text.substr(index, length))}</mark>`;
         } else {
           result += `<mark>${escapeHtml(text.substr(index, length))}</mark>`;
         }
+
         lastIndex = index + length;
       }
       result += escapeHtml(text.substring(lastIndex));
       highlightedText.innerHTML = result;
       highlightedText.style.display = 'block';
       textInput.style.display = 'none';
+
       setTimeout(() => {
         const marks = highlightedText.querySelectorAll('mark');
         if (marks[currentIndex]) {
@@ -247,8 +271,10 @@
       textInput.style.display = 'block';
     }
 
+    // Klavye okları ile gezinme
     document.addEventListener('keydown', (e) => {
       if (matches.length === 0) return;
+
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         currentIndex = (currentIndex + 1) % matches.length;
@@ -262,6 +288,7 @@
       }
     });
 
+    // Butonlarla gezinme
     prevBtn.addEventListener('click', () => {
       if (matches.length === 0) return;
       currentIndex = (currentIndex - 1 + matches.length) % matches.length;
@@ -276,9 +303,16 @@
       updateSearchInfo();
     });
 
+    // HTML karakter kaçış
     function escapeHtml(text) {
-      return text.replace(/[&<>"']/g, function(m) {
-        return ({ '&': '&', '<': '<', '>': '>', '"': '"', "'": ''' })[m];
+      return text.replace(/[&<>"']/g, function (m) {
+        return ({
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#39;'
+        })[m];
       });
     }
 
@@ -298,7 +332,6 @@
       }
 
       summaryOutput.value = 'Özetleniyor... Lütfen bekleyin.';
-      aiSummarizeBtn.disabled = true;
 
       try {
         if (provider === 'openai') {
@@ -310,80 +343,38 @@
             },
             body: JSON.stringify({
               model: 'gpt-3.5-turbo',
-              messages: [{ role: 'user', content: 'Bu metni Türkçe olarak özetle:\n' + text }],
+              messages: [
+                { role: 'user', content: 'Bu metni Türkçe olarak özetle:\n' + text }
+              ],
               max_tokens: 500,
               temperature: 0.5,
             })
           });
 
           if (!res.ok) {
-            const errorData = await res.json().catch(() => ({}));
-            throw new Error(`API hatası: ${res.status} ${res.statusText}. Detay: ${errorData.error?.message || 'Bilinmiyor'}`);
+            if (res.status === 429) {
+              throw new Error('API istek limiti aşıldı. Lütfen daha sonra tekrar deneyin.');
+            } else {
+              throw new Error('API hatası: ' + res.status + ' ' + res.statusText);
+            }
           }
 
           const data = await res.json();
           summaryOutput.value = data.choices?.[0]?.message?.content || 'Özet alınamadı.';
-
         } else if (provider === 'gemini') {
-          // --- YENİ EKLENEN GEMINI KODU ---
-          const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${key}`;
-          
-          const res = await fetch(GEMINI_API_URL, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              contents: [{
-                parts: [{
-                  text: 'Bu metni Türkçe olarak özetle:\n' + text
-                }]
-              }],
-               // İsteğe bağlı güvenlik ayarları: Riskli içeriği engelleme seviyesi
-              safetySettings: [
-                { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-                { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-                { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-                { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }
-              ]
-            })
-          });
-
-          if (!res.ok) {
-            const errorData = await res.json().catch(() => ({}));
-            throw new Error(`API hatası: ${res.status} ${res.statusText}. Detay: ${errorData.error?.message || 'Bilinmiyor'}`);
-          }
-          
-          const data = await res.json();
-          // Gemini'den gelen yanıtın yapısı OpenAI'den farklıdır.
-          // Cevap bazen boş olabilir veya güvenlik filtreleri tarafından engellenebilir.
-          const summary = data.candidates?.[0]?.content?.parts?.[0]?.text;
-          
-          if (summary) {
-            summaryOutput.value = summary;
-          } else {
-            // Eğer `candidates` yoksa, bu genellikle güvenlik nedeniyle engellendiği anlamına gelir.
-            const blockReason = data.promptFeedback?.blockReason;
-            if (blockReason) {
-              summaryOutput.value = `İçerik güvenlik filtresi tarafından engellendi. Sebep: ${blockReason}`;
-            } else {
-              summaryOutput.value = 'Özet alınamadı (API yanıtı boş veya geçersiz).';
-            }
-          }
-          // --- GEMINI KODU SONU ---
-
+          // Gemini için proxy veya özel endpoint gerekir, placeholder mesaj:
+          summaryOutput.value = 'Google Gemini desteği henüz aktif değil.';
         } else {
           summaryOutput.value = 'Bilinmeyen AI sağlayıcısı seçildi.';
         }
       } catch (e) {
         summaryOutput.value = 'Hata: ' + e.message;
-      } finally {
-        aiSummarizeBtn.disabled = false;
       }
     });
 
     // Sayfa yüklendiğinde sayaçları güncelle
     updateCounts();
+
   </script>
 </body>
 </html>
