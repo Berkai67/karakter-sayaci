@@ -170,7 +170,7 @@
     });
 
     function performSearch() {
-      const text = textInput.value;
+      const originalText = textInput.value;
       const search = searchInput.value.trim();
 
       if (search === '') {
@@ -178,18 +178,24 @@
         return;
       }
 
-      const regex = new RegExp(escapeRegExp(search), 'gi');
+      // Metin ve arama terimini Türkçe locale ile küçük harfe çeviriyoruz
+      const text = originalText.toLocaleLowerCase('tr-TR');
+      const searchLower = search.toLocaleLowerCase('tr-TR');
 
       matches = [];
-      let match;
-      while ((match = regex.exec(text)) !== null) {
-        matches.push({index: match.index, length: match[0].length});
-        // regex.lastIndex is automatically updated
+
+      // Aramayı küçük harf haline çevrilmiş metin üzerinde yapıyoruz
+      let startIndex = 0;
+      while (true) {
+        const index = text.indexOf(searchLower, startIndex);
+        if (index === -1) break;
+        matches.push({index: index, length: searchLower.length});
+        startIndex = index + searchLower.length;
       }
 
       if (matches.length === 0) {
         // Hiç bulunamadı
-        highlightedText.innerHTML = escapeHtml(text);
+        highlightedText.innerHTML = escapeHtml(originalText);
         highlightedText.style.display = 'block';
         textInput.style.display = 'none';
         searchInfo.textContent = 'Bulunan: 0 / 0';
@@ -276,7 +282,7 @@
       updateSearchInfo();
     });
 
-    // Regex için özel karakter kaçış
+    // Regex için özel karakter kaçış (şimdilik arama regex değil, indexOf kullandık, ihtiyaca göre kullanabilirsin)
     function escapeRegExp(string) {
       return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
