@@ -340,7 +340,7 @@
           summaryOutput.value = openAiSummary;
 
         } else if (provider === 'gemini') {
-          const geminiApiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=' + key;
+          const geminiApiUrl = 'https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=' + key;
           
           const geminiRes = await fetch(geminiApiUrl, {
             method: 'POST',
