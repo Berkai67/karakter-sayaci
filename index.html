@@ -42,19 +42,25 @@
     function updateCounts() {
       const text = textInput.value.trim();
 
-      // Karakter sayısı (boşluk dahil)
+      // Karakter sayısı (boşluklar dahil)
       charCount.textContent = text.length;
 
-      // Kelime sayısı: boşluklarla ayrılan en az bir karakterli kelimeler
-      const words = text === '' ? [] : text.split(/\s+/);
+      // Noktalama işaretlerini temizle
+      let cleanText = text.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()\"\?«»…–—]/g, '');
+
+      // Türkçe ve İngilizce harflerden oluşan kelimeleri ayır
+      const words = cleanText.match(/\b[a-zA-ZığüşöçİĞÜŞÖÇ]+\b/g) || [];
+
       wordCount.textContent = words.length;
 
-      // Paragraf sayısı: satır sonlarıyla ayrılan bloklar, boş satırlar sayılmaz
+      // Paragraf sayısı: boş satırları sayma
       const paras = text.split(/\n+/).filter(p => p.trim() !== '');
       paraCount.textContent = paras.length;
     }
 
     textInput.addEventListener('input', updateCounts);
+
+    updateCounts();
   </script>
 </body>
 </html>
