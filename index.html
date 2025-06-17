@@ -75,6 +75,14 @@
     h2 {
       margin-top: 40px;
     }
+
+    /* Yeni eklenen API hata mesaj div stili */
+    #api-error-message {
+      color: red;
+      font-weight: bold;
+      margin-top: 10px;
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -112,13 +120,14 @@
 
   <textarea id="summary-output" placeholder="Özet burada görünecek..." readonly></textarea>
 
+  <!-- API Hata mesajı -->
+  <div id="api-error-message"></div>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.8.162/pdf.min.js"></script>
 
   <script>
-    // PDF.js ayarı
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.8.162/pdf.worker.min.js';
 
-    // Elementler
     const fileInput = document.getElementById('file-input');
     const textInput = document.getElementById('text-input');
     const wordCount = document.getElementById('word-count');
@@ -137,7 +146,8 @@
     const aiSummarizeBtn = document.getElementById('ai-summarize-btn');
     const summaryOutput = document.getElementById('summary-output');
 
-    // PDF dosyası seçilince
+    const apiErrorMessage = document.getElementById('api-error-message');
+
     fileInput.addEventListener('change', async () => {
       const file = fileInput.files[0];
       if (!file) return;
@@ -163,29 +173,23 @@
       }
     });
 
-    // Sayaç güncelle
     function updateCounts() {
       const text = textInput.value.trim();
 
       charCount.textContent = text.length;
 
-      // Noktalama işaretlerini temizle, kelimeleri al
       const cleanText = text.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()\"\?«»…–—]/g, ' ');
       const words = cleanText.match(/\b[a-zA-ZığüşöçİĞÜŞÖÇ]+\b/g) || [];
       wordCount.textContent = words.length;
 
-      // Paragraf sayısı (boş satırları at)
       const paras = text.split(/\n+/).filter(p => p.trim() !== '');
       paraCount.textContent = paras.length;
     }
 
-    // Metin alanına yazınca sayaç güncelle ve aramayı temizle
     textInput.addEventListener('input', () => {
       updateCounts();
       clearSearch();
     });
-
-    // Arama & vurgulama
 
     let currentIndex = 0;
     let matches = [];
@@ -271,7 +275,6 @@
       textInput.style.display = 'block';
     }
 
-    // Klavye okları ile gezinme
     document.addEventListener('keydown', (e) => {
       if (matches.length === 0) return;
 
@@ -288,7 +291,6 @@
       }
     });
 
-    // Butonlarla gezinme
     prevBtn.addEventListener('click', () => {
       if (matches.length === 0) return;
       currentIndex = (currentIndex - 1 + matches.length) % matches.length;
@@ -303,7 +305,6 @@
       updateSearchInfo();
     });
 
-    // HTML karakter kaçış
     function escapeHtml(text) {
       return text.replace(/[&<>"']/g, function (m) {
         return ({
@@ -316,11 +317,18 @@
       });
     }
 
-    // AI Özet Fonksiyonu
+    // API hata mesajını göster / gizle fonksiyonu
+    function showApiError(message) {
+      apiErrorMessage.textContent = message;
+      apiErrorMessage.style.display = message ? 'block' : 'none';
+    }
+
     aiSummarizeBtn.addEventListener('click', async () => {
       const text = textInput.value.trim();
       const key = aiKeyInput.value.trim();
       const provider = aiProviderSelect.value;
+
+      showApiError(''); // Önce hata mesajını temizle
 
       if (!key) {
         alert('Lütfen API anahtarınızı girin!');
@@ -350,21 +358,28 @@
               temperature: 0.5,
             })
           });
+
+          if (res.status === 429) {
+            showApiError('Uyarı: Çok fazla istek gönderdiniz, lütfen birkaç dakika bekleyip tekrar deneyin.');
+            summaryOutput.value = '';
+            return;
+          }
+
           if (!res.ok) throw new Error('API hatası: ' + res.status + ' ' + res.statusText);
+
           const data = await res.json();
           summaryOutput.value = data.choices?.[0]?.message?.content || 'Özet alınamadı.';
         } else if (provider === 'gemini') {
-          // Gemini için proxy veya özel endpoint gerekir, placeholder mesaj:
           summaryOutput.value = 'Google Gemini desteği henüz aktif değil.';
         } else {
           summaryOutput.value = 'Bilinmeyen AI sağlayıcısı seçildi.';
         }
       } catch (e) {
-        summaryOutput.value = 'Hata: ' + e.message;
+        showApiError('Hata: ' + e.message);
+        summaryOutput.value = '';
       }
     });
 
-    // Sayfa yüklendiğinde sayaçları güncelle
     updateCounts();
 
   </script>
