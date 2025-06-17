@@ -11,6 +11,37 @@
       max-width: 600px;
       margin: auto;
     }
+    nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background-color: #333;
+      padding: 10px 15px;
+      color: #fff;
+      margin-bottom: 20px;
+      border-radius: 8px;
+    }
+    nav h1 {
+      font-size: 18px;
+      margin: 0;
+    }
+    nav button {
+      background-color: #555;
+      color: #fff;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #info-box {
+      display: none;
+      background-color: #f2f2f2;
+      padding: 15px;
+      border-radius: 8px;
+      font-size: 15px;
+      margin-bottom: 20px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.1);
+    }
     textarea {
       width: 100%;
       height: 150px;
@@ -75,13 +106,33 @@
     h2 {
       margin-top: 40px;
     }
+    #download-btn {
+      margin-top: 20px;
+      padding: 8px 16px;
+      font-size: 16px;
+      width: 100%;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
-  <h1>Kelime, Karakter ve Paragraf Sayacı + PDF Okuma & Arama + AI Özet</h1>
+  <nav>
+    <h1>📝 Metin Aracı</h1>
+    <button onclick="toggleInfo()">ℹ️ Hakkında</button>
+  </nav>
+
+  <div id="info-box">
+    <strong>Bu araç:</strong>
+    <ul>
+      <li>PDF dosyalarını okur</li>
+      <li>Kelime, karakter ve paragraf sayar</li>
+      <li>Metin içinde arama ve vurgulama yapar</li>
+      <li>OpenAI veya Gemini API anahtarınla özet çıkarır</li>
+    </ul>
+    <p><strong>Not:</strong> API anahtarları yalnızca tarayıcında tutulur, sunucuya gönderilmez.</p>
+  </div>
 
   <input type="file" id="file-input" accept="application/pdf" />
-
   <textarea id="text-input" placeholder="Metni buraya yaz veya yapıştır..."></textarea>
 
   <div class="counts">
@@ -91,18 +142,16 @@
   </div>
 
   <input type="text" id="search-input" placeholder="Metinde arama yap..." />
-
   <div id="button-container">
-    <button id="prev-btn" type="button">▲ Yukarı</button>
-    <button id="next-btn" type="button">▼ Aşağı</button>
+    <button id="prev-btn">▲ Yukarı</button>
+    <button id="next-btn">▼ Aşağı</button>
   </div>
-
   <div id="search-info">Bulunan: 0 / 0</div>
   <div id="highlighted-text"></div>
 
   <h2>AI Destekli Özet Çıkarma</h2>
   <div id="ai-container">
-    <input type="text" id="ai-key" placeholder="API anahtarınızı girin (OpenAI/Gemini)..." autocomplete="off" />
+    <input type="text" id="ai-key" placeholder="API anahtarınızı girin (OpenAI/Gemini)..." />
     <select id="ai-provider">
       <option value="openai">OpenAI (GPT)</option>
       <option value="gemini">Google Gemini</option>
@@ -111,14 +160,10 @@
   </div>
 
   <textarea id="summary-output" placeholder="Özet burada görünecek..." readonly></textarea>
+  <button id="download-btn">Özeti TXT olarak indir</button>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.8.162/pdf.min.js"></script>
-
   <script>
-    // PDF.js ayarı
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.8.162/pdf.worker.min.js';
-
-    // Elementler
     const fileInput = document.getElementById('file-input');
     const textInput = document.getElementById('text-input');
     const wordCount = document.getElementById('word-count');
@@ -127,262 +172,126 @@
     const searchInput = document.getElementById('search-input');
     const highlightedText = document.getElementById('highlighted-text');
     const searchInfo = document.getElementById('search-info');
-    const prevBtn = document.getElementById('prev-btn');
-    const nextBtn = document.getElementById('next-btn');
-    const aiKeyInput = document.getElementById('ai-key');
-    const aiProviderSelect = document.getElementById('ai-provider');
-    const aiSummarizeBtn = document.getElementById('ai-summarize-btn');
     const summaryOutput = document.getElementById('summary-output');
+    let searchResults = [], currentIndex = 0;
 
-    // PDF dosyası seçilince
-    fileInput.addEventListener('change', async function() {
-      const file = fileInput.files[0];
-      if (!file) return;
-
-      try {
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument(new Uint8Array(arrayBuffer)).promise;
-        let fullText = '';
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await pdf.getPage(i);
-          const textContent = await page.getTextContent();
-          const strings = textContent.items.map(item => item.str);
-          fullText += strings.join(' ') + '\n\n';
-        }
-        textInput.value = fullText.trim();
-        updateCounts();
-        clearSearch();
-      } catch (err) {
-        alert('PDF okunamadı: ' + err.message);
-      }
-    });
-
-    // Sayaç güncelleme fonksiyonu (KESİN ÇÖZÜM)
-    function updateCounts() {
-      const text = textInput.value.trim();
-      charCount.textContent = text.length;
-
-      // Harf, rakam, boşluk dışındaki karakterleri temizle
-      const cleanText = text.replace(/[^a-zA-Z0-9ığüşöçİĞÜŞÖÇ\s]/g, ' ');
-      const words = cleanText.split(/\s+/).filter(w => w.length > 0);
-      wordCount.textContent = words.length;
-
-      const paras = text.split(/\n+/).filter(p => p.trim() !== '');
-      paraCount.textContent = paras.length;
+    function updateCounts(text) {
+      wordCount.textContent = text.trim().split(/\s+/).filter(Boolean).length;
+      charCount.textContent = text.replace(/\s/g, '').length;
+      paraCount.textContent = text.split(/\n+/).filter(Boolean).length;
     }
 
-    // Metin alanına yazınca sayaç güncelle ve aramayı temizle
-    textInput.addEventListener('input', () => {
-      updateCounts();
-      clearSearch();
-    });
+    textInput.addEventListener('input', () => updateCounts(textInput.value));
 
-    // Arama & vurgulama
-    let currentIndex = 0;
-    let matches = [];
+    fileInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file || file.type !== 'application/pdf') return;
+      const buffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+      let text = '';
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        text += content.items.map(i => i.str).join(' ') + '\n';
+      }
+      textInput.value = text;
+      updateCounts(text);
+    });
 
     searchInput.addEventListener('input', () => {
-      currentIndex = 0;
-      performSearch();
-    });
-
-    function performSearch() {
-      const originalText = textInput.value;
-      const search = searchInput.value.trim();
-      if (search === '') {
-        clearSearch();
-        return;
-      }
-      const text = originalText.toLocaleLowerCase('tr-TR');
-      const searchLower = search.toLocaleLowerCase('tr-TR');
-      matches = [];
-      let startIndex = 0;
-      while (true) {
-        const index = text.indexOf(searchLower, startIndex);
-        if (index === -1) break;
-        matches.push({ index, length: searchLower.length });
-        startIndex = index + searchLower.length;
-      }
-      if (matches.length === 0) {
-        highlightedText.innerHTML = escapeHtml(originalText);
-        highlightedText.style.display = 'block';
-        textInput.style.display = 'none';
+      const query = searchInput.value.trim();
+      const text = textInput.value;
+      if (!query) {
+        highlightedText.style.display = 'none';
         searchInfo.textContent = 'Bulunan: 0 / 0';
         return;
       }
-      updateHighlight();
-      updateSearchInfo();
-    }
-
-    function updateHighlight() {
-      const text = textInput.value;
-      let result = '';
-      let lastIndex = 0;
-      for (let i = 0; i < matches.length; i++) {
-        const match = matches[i];
-        const index = match.index;
-        const length = match.length;
-        result += escapeHtml(text.substring(lastIndex, index));
-        if (i === currentIndex) {
-          result += '<mark class="active">' + escapeHtml(text.substr(index, length)) + '</mark>';
-        } else {
-          result += '<mark>' + escapeHtml(text.substr(index, length)) + '</mark>';
-        }
-        lastIndex = index + length;
-      }
-      result += escapeHtml(text.substring(lastIndex));
-      highlightedText.innerHTML = result;
-      highlightedText.style.display = 'block';
-      textInput.style.display = 'none';
-      setTimeout(() => {
-        const marks = highlightedText.querySelectorAll('mark');
-        if (marks[currentIndex]) {
-          marks[currentIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }, 10);
-    }
-
-    function updateSearchInfo() {
-      searchInfo.textContent = `Bulunan: ${currentIndex + 1} / ${matches.length}`;
-    }
-
-    function clearSearch() {
-      matches = [];
+      const regex = new RegExp(`(${query})`, 'gi');
+      const matches = [...text.matchAll(regex)];
+      searchResults = matches.map(m => m.index);
       currentIndex = 0;
-      searchInfo.textContent = 'Bulunan: 0 / 0';
-      highlightedText.style.display = 'none';
-      textInput.style.display = 'block';
+      highlightedText.innerHTML = text.replace(regex, '<mark>$1</mark>');
+      highlightedText.style.display = 'block';
+      updateSearchHighlight();
+    });
+
+    function updateSearchHighlight() {
+      const marks = highlightedText.querySelectorAll('mark');
+      marks.forEach((m, i) => m.classList.toggle('active', i === currentIndex));
+      if (marks[currentIndex]) marks[currentIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+      searchInfo.textContent = `Bulunan: ${searchResults.length ? currentIndex + 1 : 0} / ${searchResults.length}`;
     }
 
-    document.addEventListener('keydown', e => {
-      if (matches.length === 0) return;
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        currentIndex = (currentIndex + 1) % matches.length;
-        updateHighlight();
-        updateSearchInfo();
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        currentIndex = (currentIndex - 1 + matches.length) % matches.length;
-        updateHighlight();
-        updateSearchInfo();
+    document.getElementById('prev-btn').onclick = () => {
+      if (searchResults.length) {
+        currentIndex = (currentIndex - 1 + searchResults.length) % searchResults.length;
+        updateSearchHighlight();
       }
-    });
+    };
 
-    prevBtn.addEventListener('click', () => {
-      if (matches.length === 0) return;
-      currentIndex = (currentIndex - 1 + matches.length) % matches.length;
-      updateHighlight();
-      updateSearchInfo();
-    });
-
-    nextBtn.addEventListener('click', () => {
-      if (matches.length === 0) return;
-      currentIndex = (currentIndex + 1) % matches.length;
-      updateHighlight();
-      updateSearchInfo();
-    });
-
-    function escapeHtml(text) {
-      return text.replace(/[&<>"']/g, function(m) {
-        return ({
-          '&': '&amp;',
-          '<': '&lt;',
-          '>': '&gt;',
-          '"': '&quot;',
-          "'": '&#39;'
-        })[m];
-      });
-    }
-
-    // AI Özet Fonksiyonu
-    aiSummarizeBtn.addEventListener('click', async () => {
-      const text = textInput.value.trim();
-      const key = aiKeyInput.value.trim();
-      const provider = aiProviderSelect.value;
-
-      if (!key) {
-        alert('Lütfen API anahtarınızı girin!');
-        return;
+    document.getElementById('next-btn').onclick = () => {
+      if (searchResults.length) {
+        currentIndex = (currentIndex + 1) % searchResults.length;
+        updateSearchHighlight();
       }
-      if (!text) {
-        alert('Özet çıkarmak için metin gereklidir!');
-        return;
-      }
+    };
 
-      summaryOutput.value = 'Özetleniyor... Lütfen bekleyin.';
-      aiSummarizeBtn.disabled = true;
+    document.getElementById('download-btn').onclick = () => {
+      const text = summaryOutput.value.trim();
+      if (!text) return alert("İndirilecek özet yok!");
+      const blob = new Blob([text], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'ozet.txt';
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+
+    document.getElementById('ai-summarize-btn').onclick = async () => {
+      const apiKey = document.getElementById('ai-key').value.trim();
+      const provider = document.getElementById('ai-provider').value;
+      const inputText = textInput.value;
+      if (!apiKey) return alert("API anahtarını girin.");
+      if (!inputText) return alert("Özetlenecek metin yok.");
+
+      summaryOutput.value = "Özetleniyor...";
 
       try {
+        let url = '', headers = {}, body = {};
         if (provider === 'openai') {
-          const openAiRes = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json', 
-              'Authorization': 'Bearer ' + key 
-            },
-            body: JSON.stringify({
-              model: 'gpt-3.5-turbo',
-              messages: [{ role: 'user', content: 'Bu metni Türkçe olarak özetle:\n' + text }],
-              max_tokens: 500,
-              temperature: 0.5,
-            })
-          });
-
-          if (!openAiRes.ok) {
-            const openAiErrorData = await openAiRes.json().catch(() => ({}));
-            const openAiDetail = (openAiErrorData.error && openAiErrorData.error.message) || 'Bilinmiyor';
-            throw new Error('API hatası: ' + openAiRes.status + ' ' + openAiRes.statusText + '. Detay: ' + openAiDetail);
-          }
-
-          const openAiData = await openAiRes.json();
-          const openAiSummary = openAiData.choices?.[0]?.message?.content || 'Özet alınamadı.';
-          summaryOutput.value = openAiSummary;
-
-        } else if (provider === 'gemini') {
-          const geminiApiUrl = 'https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=' + key;
-          
-          const geminiRes = await fetch(geminiApiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{
-                parts: [{ text: 'Bu metni Türkçe olarak özetle:\n' + text }]
-              }]
-            })
-          });
-
-          if (!geminiRes.ok) {
-            const geminiErrorData = await geminiRes.json().catch(() => ({}));
-            const geminiDetail = (geminiErrorData.error && geminiErrorData.error.message) || 'Bilinmiyor';
-            throw new Error('API hatası: ' + geminiRes.status + ' ' + geminiRes.statusText + '. Detay: ' + geminiDetail);
-          }
-          
-          const geminiData = await geminiRes.json();
-          const geminiSummary = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
-          
-          if (geminiSummary) {
-            summaryOutput.value = geminiSummary;
-          } else {
-            const blockReason = geminiData.promptFeedback?.blockReason;
-            if (blockReason) {
-              summaryOutput.value = 'İçerik güvenlik filtresi tarafından engellendi. Sebep: ' + blockReason;
-            } else {
-              summaryOutput.value = 'Özet alınamadı (API yanıtı boş veya geçersiz).';
-            }
-          }
+          url = 'https://api.openai.com/v1/chat/completions';
+          headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          };
+          body = {
+            model: 'gpt-3.5-turbo',
+            messages: [{ role: 'user', content: `Şunu özetle: ${inputText}` }],
+            temperature: 0.7
+          };
         } else {
-          summaryOutput.value = 'Bilinmeyen AI sağlayıcısı seçildi.';
+          url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=' + apiKey;
+          headers = { 'Content-Type': 'application/json' };
+          body = { contents: [{ parts: [{ text: `Şunu özetle: ${inputText}` }] }] };
         }
-      } catch (e) {
-        summaryOutput.value = 'Hata: ' + e.message;
-      } finally {
-        aiSummarizeBtn.disabled = false;
-      }
-    });
 
-    // Sayfa yüklendiğinde sayaçları güncelle
-    updateCounts();
+        const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+        const data = await res.json();
+
+        summaryOutput.value = provider === 'openai'
+          ? data.choices?.[0]?.message?.content || 'Özet alınamadı.'
+          : data.candidates?.[0]?.content?.parts?.[0]?.text || 'Özet alınamadı.';
+      } catch (e) {
+        summaryOutput.value = 'Bir hata oluştu: ' + e.message;
+      }
+    };
+
+    function toggleInfo() {
+      const box = document.getElementById('info-box');
+      box.style.display = box.style.display === 'block' ? 'none' : 'block';
+      if (box.style.display === 'block') box.scrollIntoView({ behavior: 'smooth' });
+    }
   </script>
 </body>
 </html>
