@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE html> 
 <html lang="tr">
 <head>
   <meta charset="UTF-8" />
@@ -28,7 +28,7 @@
       width: 100%;
       padding: 8px;
       font-size: 16px;
-      margin-bottom: 20px;
+      margin-bottom: 5px;
       box-sizing: border-box;
     }
     /* Arama sonucu için highlight yapılacak alan */
@@ -41,11 +41,18 @@
       white-space: pre-wrap;
       font-size: 16px;
       font-family: Arial, sans-serif;
-      margin-bottom: 20px;
+      margin-bottom: 10px;
       display: none; /* Başta gizli */
     }
     mark {
       background-color: yellow;
+    }
+    mark.active {
+      background-color: orange;
+    }
+    #search-info {
+      margin-bottom: 15px;
+      font-weight: bold;
     }
   </style>
 </head>
@@ -63,6 +70,7 @@
   </div>
 
   <input type="text" id="search-input" placeholder="Metinde arama yap..." />
+  <div id="search-info">Bulunan: 0 / 0</div>
 
   <div id="highlighted-text"></div>
 
@@ -77,6 +85,7 @@
     const fileInput = document.getElementById('file-input');
     const searchInput = document.getElementById('search-input');
     const highlightedText = document.getElementById('highlighted-text');
+    const searchInfo = document.getElementById('search-info');
 
     // pdf.js worker yolu
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.8.162/pdf.worker.min.js';
@@ -101,8 +110,7 @@
 
         textInput.value = fullText.trim();
         updateCounts();
-        searchInput.value = '';
-        highlightedText.style.display = 'none';
+        clearSearch();
       };
       fileReader.readAsArrayBuffer(file);
     });
@@ -111,62 +119,144 @@
     function updateCounts() {
       const text = textInput.value.trim();
 
-      // Karakter sayısı
       charCount.textContent = text.length;
 
-      // Noktalama işaretlerini temizle
       let cleanText = text.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()\"\?«»…–—]/g, '');
 
-      // Türkçe ve İngilizce harflerden oluşan kelimeleri ayır
       const words = cleanText.match(/\b[a-zA-ZığüşöçİĞÜŞÖÇ]+\b/g) || [];
 
       wordCount.textContent = words.length;
 
-      // Paragraf sayısı
       const paras = text.split(/\n+/).filter(p => p.trim() !== '');
       paraCount.textContent = paras.length;
     }
 
-    // Metin textarea değiştiğinde sayaçları güncelle
+    // Metin textarea değiştiğinde sayaçları ve aramayı güncelle
     textInput.addEventListener('input', () => {
       updateCounts();
-      performSearch(); // Aramayı da güncelle
+      clearSearch();
     });
 
-    // Arama input değişince arama yap
-    searchInput.addEventListener('input', performSearch);
+    // Arama ve vurgulama ile sonuçlar arası gezinme
+    let currentIndex = 0;
+    let matches = [];
 
-    // Arama ve vurgulama işlemi
+    searchInput.addEventListener('input', () => {
+      currentIndex = 0;
+      performSearch();
+    });
+
     function performSearch() {
       const text = textInput.value;
       const search = searchInput.value.trim();
 
       if (search === '') {
-        highlightedText.style.display = 'none';
-        textInput.style.display = 'block';
+        clearSearch();
         return;
       }
 
-      // Büyük küçük harfe duyarsız arama için küçük harfe çevir
-      const regex = new RegExp(`(${escapeRegExp(search)})`, 'gi');
+      const regex = new RegExp(escapeRegExp(search), 'gi');
 
-      // Metindeki eşleşmeleri <mark> ile sar
-      const highlighted = text.replace(regex, '<mark>$1</mark>');
+      matches = [];
+      let match;
+      while ((match = regex.exec(text)) !== null) {
+        matches.push({index: match.index, length: match[0].length});
+        // regex.lastIndex is automatically updated
+      }
 
-      // Vurgulanan metni göster
-      highlightedText.innerHTML = highlighted;
-      highlightedText.style.display = 'block';
+      if (matches.length === 0) {
+        // Hiç bulunamadı
+        highlightedText.innerHTML = escapeHtml(text);
+        highlightedText.style.display = 'block';
+        textInput.style.display = 'none';
+        searchInfo.textContent = 'Bulunan: 0 / 0';
+        return;
+      }
 
-      // Textarea'yı gizle (çünkü içinde HTML olamaz)
-      textInput.style.display = 'none';
+      updateHighlight();
+      updateSearchInfo();
     }
 
-    // Özel karakterlerin regex'te özel anlamı olmasın diye kaçış fonksiyonu
+    function updateHighlight() {
+      const text = textInput.value;
+      let result = '';
+      let lastIndex = 0;
+
+      for (let i = 0; i < matches.length; i++) {
+        const {index, length} = matches[i];
+        result += escapeHtml(text.substring(lastIndex, index));
+
+        if (i === currentIndex) {
+          result += `<mark class="active">${escapeHtml(text.substr(index, length))}</mark>`;
+        } else {
+          result += `<mark>${escapeHtml(text.substr(index, length))}</mark>`;
+        }
+
+        lastIndex = index + length;
+      }
+
+      result += escapeHtml(text.substring(lastIndex));
+      highlightedText.innerHTML = result;
+      highlightedText.style.display = 'block';
+      textInput.style.display = 'none';
+
+      // Aktif sonucu ortala
+      setTimeout(() => {
+        const marks = highlightedText.querySelectorAll('mark');
+        if (marks[currentIndex]) {
+          marks[currentIndex].scrollIntoView({behavior: 'smooth', block: 'center'});
+        }
+      }, 10);
+    }
+
+    function updateSearchInfo() {
+      searchInfo.textContent = `Bulunan: ${currentIndex + 1} / ${matches.length}`;
+    }
+
+    function clearSearch() {
+      matches = [];
+      currentIndex = 0;
+      searchInfo.textContent = 'Bulunan: 0 / 0';
+      highlightedText.style.display = 'none';
+      textInput.style.display = 'block';
+    }
+
+    // Klavye ok tuşları ile gezinme
+    document.addEventListener('keydown', (e) => {
+      if (matches.length === 0) return;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        currentIndex = (currentIndex + 1) % matches.length;
+        updateHighlight();
+        updateSearchInfo();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        currentIndex = (currentIndex - 1 + matches.length) % matches.length;
+        updateHighlight();
+        updateSearchInfo();
+      }
+    });
+
+    // Regex için özel karakter kaçış
     function escapeRegExp(string) {
       return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
 
-    // Sayfa ilk açıldığında sayacı güncelle
+    // HTML özel karakterleri kaçır
+    function escapeHtml(text) {
+      return text.replace(/[&<>"']/g, function(m) {
+        return ({
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#39;'
+        })[m];
+      });
+    }
+
+    // İlk açılışta sayaç güncelle
     updateCounts();
 
   </script>
