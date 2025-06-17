@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="tr">
 <head>
   <meta charset="UTF-8" />
@@ -30,6 +30,18 @@
       font-size: 16px;
       margin-bottom: 5px;
       box-sizing: border-box;
+    }
+    /* Yeni butonların container'ı */
+    #button-container {
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: flex-start;
+      gap: 10px;
+    }
+    #button-container button {
+      padding: 6px 12px;
+      font-size: 16px;
+      cursor: pointer;
     }
     /* Arama sonucu için highlight yapılacak alan */
     #highlighted-text {
@@ -70,6 +82,13 @@
   </div>
 
   <input type="text" id="search-input" placeholder="Metinde arama yap..." />
+  
+  <!-- Butonları buraya ekledim -->
+  <div id="button-container">
+    <button id="prev-btn" type="button">▲ Yukarı</button>
+    <button id="next-btn" type="button">▼ Aşağı</button>
+  </div>
+
   <div id="search-info">Bulunan: 0 / 0</div>
 
   <div id="highlighted-text"></div>
@@ -86,6 +105,10 @@
     const searchInput = document.getElementById('search-input');
     const highlightedText = document.getElementById('highlighted-text');
     const searchInfo = document.getElementById('search-info');
+
+    // Butonlar
+    const prevBtn = document.getElementById('prev-btn');
+    const nextBtn = document.getElementById('next-btn');
 
     // pdf.js worker yolu
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.8.162/pdf.worker.min.js';
@@ -236,6 +259,21 @@
         updateHighlight();
         updateSearchInfo();
       }
+    });
+
+    // Yeni: Butonlara tıklama ile gezinme
+    prevBtn.addEventListener('click', () => {
+      if (matches.length === 0) return;
+      currentIndex = (currentIndex - 1 + matches.length) % matches.length;
+      updateHighlight();
+      updateSearchInfo();
+    });
+
+    nextBtn.addEventListener('click', () => {
+      if (matches.length === 0) return;
+      currentIndex = (currentIndex + 1) % matches.length;
+      updateHighlight();
+      updateSearchInfo();
     });
 
     // Regex için özel karakter kaçış
