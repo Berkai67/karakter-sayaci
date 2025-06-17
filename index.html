@@ -1,148 +1,62 @@
-<!DOCTYPE html>
-<html lang="tr">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Kelime & Karakter & Paragraf Sayacı + PDF Okuma & Arama + AI Özet</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 20px;
-      max-width: 600px;
-      margin: auto;
+<script>
+  let lastCallTime = 0;
+
+  async function summarizeWithAI() {
+    const text = document.getElementById('text-input').value;
+    const key = document.getElementById('ai-key').value.trim();
+    const provider = document.getElementById('ai-provider').value;
+    const output = document.getElementById('summary-output');
+
+    if (!key || !text) {
+      alert('Lütfen önce metni ve geçerli bir API anahtarını girin.');
+      return;
     }
-    textarea {
-      width: 100%;
-      height: 150px;
-      font-size: 16px;
-      padding: 10px;
-      box-sizing: border-box;
-      margin-bottom: 20px;
-      white-space: pre-wrap;
+
+    const now = Date.now();
+    if (now - lastCallTime < 5000) {
+      alert('Çok hızlı istek gönderdiniz. Lütfen birkaç saniye bekleyin.');
+      return;
     }
-    .counts {
-      font-size: 18px;
-      margin-bottom: 20px;
-    }
-    #search-input, #ai-key, #ai-provider {
-      width: 100%;
-      padding: 8px;
-      font-size: 16px;
-      margin-bottom: 5px;
-      box-sizing: border-box;
-    }
-    #button-container, #ai-container {
-      margin-bottom: 10px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    #button-container button, #ai-container button {
-      padding: 6px 12px;
-      font-size: 16px;
-      cursor: pointer;
-    }
-    #highlighted-text {
-      width: 100%;
-      height: 150px;
-      border: 1px solid #ccc;
-      padding: 10px;
-      overflow-y: auto;
-      white-space: pre-wrap;
-      font-size: 16px;
-      font-family: Arial, sans-serif;
-      margin-bottom: 10px;
-      display: none;
-    }
-    mark { background-color: yellow; }
-    mark.active { background-color: orange; }
-    #search-info {
-      margin-bottom: 15px;
-      font-weight: bold;
-    }
-  </style>
-</head>
-<body>
-  <h1>Kelime, Karakter ve Paragraf Sayacı + PDF Okuma & Arama + AI Özet</h1>
+    lastCallTime = now;
 
-  <input type="file" id="file-input" accept="application/pdf" />
-  <textarea id="text-input" placeholder="Metni buraya yaz veya yapıştır..."></textarea>
+    output.value = 'Özetleniyor...';
 
-  <div class="counts">
-    <p>Kelime Sayısı: <span id="word-count">0</span></p>
-    <p>Karakter Sayısı: <span id="char-count">0</span></p>
-    <p>Paragraf Sayısı: <span id="para-count">0</span></p>
-  </div>
+    try {
+      if (provider === 'openai') {
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${key}`
+          },
+          body: JSON.stringify({
+            model: 'gpt-3.5-turbo',
+            messages: [{ role: 'user', content: 'Bu metni özetle:\n' + text }],
+            max_tokens: 500,
+            temperature: 0.5
+          })
+        });
 
-  <input type="text" id="search-input" placeholder="Metinde arama yap..." />
-
-  <div id="button-container">
-    <button id="prev-btn" type="button">▲ Yukarı</button>
-    <button id="next-btn" type="button">▼ Aşağı</button>
-  </div>
-
-  <div id="search-info">Bulunan: 0 / 0</div>
-  <div id="highlighted-text"></div>
-
-  <h2>AI Destekli Özet Çıkarma</h2>
-  <div id="ai-container">
-    <input type="text" id="ai-key" placeholder="API anahtarınızı girin (OpenAI/Gemini)...">
-    <select id="ai-provider">
-      <option value="openai">OpenAI (GPT)</option>
-      <option value="gemini">Google Gemini</option>
-    </select>
-    <button onclick="summarizeWithAI()">AI ile Özet Çıkar</button>
-    <textarea id="summary-output" placeholder="Özet burada görünecek..." readonly></textarea>
-  </div>
-
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.8.162/pdf.min.js"></script>
-  <script>
-    // Önceki JS kodları (kelime, arama vs.) burada aynı kalır (uzun olduğundan tekrar yazmadım).
-    // Aşağıya sadece AI özetleme fonksiyonunu ekliyoruz:
-
-    async function summarizeWithAI() {
-      const text = document.getElementById('text-input').value;
-      const key = document.getElementById('ai-key').value;
-      const provider = document.getElementById('ai-provider').value;
-      const output = document.getElementById('summary-output');
-
-      if (!key || !text) {
-        alert('API anahtarı ve metin gereklidir.');
-        return;
-      }
-
-      output.value = 'Özetleniyor...';
-
-      try {
-        let response;
-
-        if (provider === 'openai') {
-          response = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${key}`
-            },
-            body: JSON.stringify({
-              model: 'gpt-3.5-turbo',
-              messages: [
-                { role: 'user', content: 'Bu metni özetle:\n' + text }
-              ],
-              max_tokens: 500
-            })
-          });
-          const data = await response.json();
-          output.value = data.choices?.[0]?.message?.content || 'Özet alınamadı';
-        } else if (provider === 'gemini') {
-          // Gemini destekleyen proxy sunucu veya 3. parti servis gereklidir.
-          output.value = 'Gemini henüz doğrudan desteklenmiyor.';
-        } else {
-          output.value = 'Bilinmeyen sağlayıcı';
+        if (response.status === 429) {
+          output.value = 'Çok fazla istek gönderildi (429). Lütfen bir süre sonra tekrar deneyin.';
+          return;
         }
-      } catch (error) {
-        output.value = 'Hata: ' + error.message;
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          output.value = `API Hatası: ${errorData.error?.message || 'Bilinmeyen hata'}`;
+          return;
+        }
+
+        const data = await response.json();
+        output.value = data.choices?.[0]?.message?.content || 'Özet alınamadı.';
+      } else if (provider === 'gemini') {
+        output.value = 'Gemini henüz doğrudan desteklenmiyor.';
+      } else {
+        output.value = 'Bilinmeyen sağlayıcı.';
       }
+    } catch (error) {
+      output.value = 'Hata oluştu: ' + error.message;
     }
-  </script>
-</body>
-</html>
+  }
+</script>
