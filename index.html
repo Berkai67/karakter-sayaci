@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Kelime & Karakter & Paragraf Sayacı</title>
+  <title>Kelime & Karakter & Paragraf Sayacı + PDF Okuma & Arama</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -18,31 +18,100 @@
       padding: 10px;
       box-sizing: border-box;
       margin-bottom: 20px;
+      white-space: pre-wrap;
     }
     .counts {
       font-size: 18px;
+      margin-bottom: 20px;
+    }
+    #search-input {
+      width: 100%;
+      padding: 8px;
+      font-size: 16px;
+      margin-bottom: 20px;
+      box-sizing: border-box;
+    }
+    /* Arama sonucu için highlight yapılacak alan */
+    #highlighted-text {
+      width: 100%;
+      height: 150px;
+      border: 1px solid #ccc;
+      padding: 10px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      font-size: 16px;
+      font-family: Arial, sans-serif;
+      margin-bottom: 20px;
+      display: none; /* Başta gizli */
+    }
+    mark {
+      background-color: yellow;
     }
   </style>
 </head>
 <body>
-  <h1>Kelime, Karakter ve Paragraf Sayacı</h1>
+  <h1>Kelime, Karakter ve Paragraf Sayacı + PDF Okuma & Arama</h1>
+
+  <input type="file" id="file-input" accept="application/pdf" />
+
   <textarea id="text-input" placeholder="Metni buraya yaz veya yapıştır..."></textarea>
+
   <div class="counts">
     <p>Kelime Sayısı: <span id="word-count">0</span></p>
     <p>Karakter Sayısı: <span id="char-count">0</span></p>
     <p>Paragraf Sayısı: <span id="para-count">0</span></p>
   </div>
 
+  <input type="text" id="search-input" placeholder="Metinde arama yap..." />
+
+  <div id="highlighted-text"></div>
+
+  <!-- pdf.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.8.162/pdf.min.js"></script>
+
   <script>
     const textInput = document.getElementById('text-input');
     const wordCount = document.getElementById('word-count');
     const charCount = document.getElementById('char-count');
     const paraCount = document.getElementById('para-count');
+    const fileInput = document.getElementById('file-input');
+    const searchInput = document.getElementById('search-input');
+    const highlightedText = document.getElementById('highlighted-text');
 
+    // pdf.js worker yolu
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.8.162/pdf.worker.min.js';
+
+    // PDF dosya yüklendiğinde metni çıkarıp textarea'ya koy
+    fileInput.addEventListener('change', async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      const fileReader = new FileReader();
+      fileReader.onload = async function() {
+        const typedarray = new Uint8Array(this.result);
+        const pdf = await pdfjsLib.getDocument(typedarray).promise;
+        let fullText = '';
+
+        for(let i=1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const textContent = await page.getTextContent();
+          const strings = textContent.items.map(item => item.str);
+          fullText += strings.join(' ') + '\n\n';
+        }
+
+        textInput.value = fullText.trim();
+        updateCounts();
+        searchInput.value = '';
+        highlightedText.style.display = 'none';
+      };
+      fileReader.readAsArrayBuffer(file);
+    });
+
+    // Kelime, karakter, paragraf sayısını güncelle
     function updateCounts() {
       const text = textInput.value.trim();
 
-      // Karakter sayısı (boşluklar dahil)
+      // Karakter sayısı
       charCount.textContent = text.length;
 
       // Noktalama işaretlerini temizle
@@ -53,14 +122,53 @@
 
       wordCount.textContent = words.length;
 
-      // Paragraf sayısı: boş satırları sayma
+      // Paragraf sayısı
       const paras = text.split(/\n+/).filter(p => p.trim() !== '');
       paraCount.textContent = paras.length;
     }
 
-    textInput.addEventListener('input', updateCounts);
+    // Metin textarea değiştiğinde sayaçları güncelle
+    textInput.addEventListener('input', () => {
+      updateCounts();
+      performSearch(); // Aramayı da güncelle
+    });
 
+    // Arama input değişince arama yap
+    searchInput.addEventListener('input', performSearch);
+
+    // Arama ve vurgulama işlemi
+    function performSearch() {
+      const text = textInput.value;
+      const search = searchInput.value.trim();
+
+      if (search === '') {
+        highlightedText.style.display = 'none';
+        textInput.style.display = 'block';
+        return;
+      }
+
+      // Büyük küçük harfe duyarsız arama için küçük harfe çevir
+      const regex = new RegExp(`(${escapeRegExp(search)})`, 'gi');
+
+      // Metindeki eşleşmeleri <mark> ile sar
+      const highlighted = text.replace(regex, '<mark>$1</mark>');
+
+      // Vurgulanan metni göster
+      highlightedText.innerHTML = highlighted;
+      highlightedText.style.display = 'block';
+
+      // Textarea'yı gizle (çünkü içinde HTML olamaz)
+      textInput.style.display = 'none';
+    }
+
+    // Özel karakterlerin regex'te özel anlamı olmasın diye kaçış fonksiyonu
+    function escapeRegExp(string) {
+      return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    // Sayfa ilk açıldığında sayacı güncelle
     updateCounts();
+
   </script>
 </body>
 </html>
