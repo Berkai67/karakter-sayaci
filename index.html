@@ -1,26 +1,60 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Karakter Sayacı</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kelime & Karakter & Paragraf Sayacı</title>
   <style>
-    body { font-family: sans-serif; padding: 20px; max-width: 500px; margin: auto; }
-    textarea { width: 100%; height: 200px; font-size: 16px; }
-    p { font-weight: bold; }
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      max-width: 600px;
+      margin: auto;
+    }
+    textarea {
+      width: 100%;
+      height: 150px;
+      font-size: 16px;
+      padding: 10px;
+      box-sizing: border-box;
+      margin-bottom: 20px;
+    }
+    .counts {
+      font-size: 18px;
+    }
   </style>
 </head>
 <body>
-  <h2>Karakter Sayacı</h2>
-  <textarea oninput="say(this.value)"></textarea>
-  <p>Karakter Sayısı: <span id="sonuc">0</span></p>
-  <hr>
-  <p style="text-align: center; font-size: 12px;">© 2025 Berkai Kuthan</p>
+  <h1>Kelime, Karakter ve Paragraf Sayacı</h1>
+  <textarea id="text-input" placeholder="Metni buraya yaz veya yapıştır..."></textarea>
+  <div class="counts">
+    <p>Kelime Sayısı: <span id="word-count">0</span></p>
+    <p>Karakter Sayısı: <span id="char-count">0</span></p>
+    <p>Paragraf Sayısı: <span id="para-count">0</span></p>
+  </div>
 
   <script>
-    function say(metin) {
-      document.getElementById('sonuc').innerText = metin.length;
+    const textInput = document.getElementById('text-input');
+    const wordCount = document.getElementById('word-count');
+    const charCount = document.getElementById('char-count');
+    const paraCount = document.getElementById('para-count');
+
+    function updateCounts() {
+      const text = textInput.value.trim();
+
+      // Karakter sayısı (boşluk dahil)
+      charCount.textContent = text.length;
+
+      // Kelime sayısı: boşluklarla ayrılan en az bir karakterli kelimeler
+      const words = text === '' ? [] : text.split(/\s+/);
+      wordCount.textContent = words.length;
+
+      // Paragraf sayısı: satır sonlarıyla ayrılan bloklar, boş satırlar sayılmaz
+      const paras = text.split(/\n+/).filter(p => p.trim() !== '');
+      paraCount.textContent = paras.length;
     }
+
+    textInput.addEventListener('input', updateCounts);
   </script>
 </body>
 </html>
