@@ -164,6 +164,8 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.8.162/pdf.min.js"></script>
   <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.8.162/pdf.worker.min.js';
+
     const fileInput = document.getElementById('file-input');
     const textInput = document.getElementById('text-input');
     const wordCount = document.getElementById('word-count');
@@ -271,12 +273,13 @@
             temperature: 0.7
           };
         } else {
-          url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=' + apiKey;
+          url = 'https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=' + apiKey;
           headers = { 'Content-Type': 'application/json' };
           body = { contents: [{ parts: [{ text: `Şunu özetle: ${inputText}` }] }] };
         }
 
         const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
         const data = await res.json();
 
         summaryOutput.value = provider === 'openai'
